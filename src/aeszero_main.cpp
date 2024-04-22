@@ -8,11 +8,11 @@ struct ArgsType {
     char mode;
     std::string file_in_name;
     std::string file_out_name;
-    std::string key16;
+    std::string key;
 };
 
 std::string usage_str() {
-    return {"Usage: aeszero -e|-d <infile> -k <key16> | -w <key64file> -o "
+    return {"Usage: aeszero -e|-d <infile> -k <key16> | -w <mixkeyfile> -o "
             "<outfile>\n"};
 }
 
@@ -40,7 +40,7 @@ ArgsType init(int argc, char *argv[]) {
     char mode = 0;
     std::string file_in_name;
     std::string file_out_name;
-    std::string key16;
+    std::string key;
 
     for (int index = 1; index < argc; index++) {
         std::string arg = argv[index];
@@ -62,7 +62,7 @@ ArgsType init(int argc, char *argv[]) {
         }
         // 检查参数是否为密钥字符串标志（-k）
         else if (arg == "-k") {
-            if (key16 != "") {
+            if (key != "") {
                 std::cerr << "Error: key string already set " << std::endl;
                 exit(1);
             }
@@ -71,12 +71,12 @@ ArgsType init(int argc, char *argv[]) {
                 exit(1);
             }
 
-            std::string key16_tmp = argv[++index];
-            key16 = AES0::Fixkey16(key16_tmp);
+            std::string key_tmp = argv[++index];
+            key = AES0::Fixkey(key_tmp);
         }
         // 检查参数是否为扩展密钥文件标志（-w）
         else if (arg == "-w") {
-            if (key16 != "") {
+            if (key != "") {
                 std::cerr << "Error: key already set " << std::endl;
                 exit(1);
             }
@@ -86,9 +86,9 @@ ArgsType init(int argc, char *argv[]) {
             }
 
             std::string key_file_name = argv[++index];
-            std::string key64;
-            read_str_from_file(key_file_name, key64);
-            key16 = AES0::InvMixkey64(key64);
+            std::string mix_key_tmp;
+            read_str_from_file(key_file_name, mix_key_tmp);
+            key = AES0::InvMixkey(mix_key_tmp);
         }
         // 检查参数是否为输出文件标志（-o）
         else if (arg == "-o") {
@@ -119,35 +119,33 @@ ArgsType init(int argc, char *argv[]) {
     }
 
     // 允许密钥为空，此时自动生成随机密钥
-    if (key16.empty()) {
+    if (key.empty()) {
         std::cout << "use random key to encrypt\n";
-        key16 = AES0::Fixkey16({});
+        key = AES0::Fixkey({});
     }
 
-    // 在加密模式下，将扩充后的密钥key64自动存储在文件中
+    // 在加密模式下，将扩充后的密钥mixkey自动存储在文件中
     if (mode == 'e') {
-        std::string key_str64 = AES0::Mixkey64(key16);
-        write_str_to_file(file_out_name + ".key", key_str64);
+        std::string mix_key_str = AES0::Mixkey(key);
+        write_str_to_file(file_out_name + ".key", mix_key_str);
     }
 
-    return {mode, file_in_name, file_out_name, key16};
+    return {mode, file_in_name, file_out_name, key};
 }
 
 void run(const ArgsType &args) {
-    std::cout << "Mode: " << args.mode << std::endl;
-
     if (args.mode == 'e') { std::cout << "[Encrypting]\n"; }
     else { std::cout << "[Decrypting]\n"; }
 
     std::cout << "Input file: " << args.file_in_name << std::endl;
     std::cout << "Output file: " << args.file_out_name << std::endl;
-    std::cout << "Key: " << args.key16 << std::endl;
+    std::cout << "Key: " << args.key << std::endl;
 
     if (args.mode == 'e') {
-        AES0::FileEncrypt(args.file_in_name, args.file_out_name, args.key16);
+        AES0::FileEncrypt(args.file_in_name, args.file_out_name, args.key);
     }
     else {  // args.mode == 'd'
-        AES0::FileDecrypt(args.file_in_name, args.file_out_name, args.key16);
+        AES0::FileDecrypt(args.file_in_name, args.file_out_name, args.key);
     }
 }
 

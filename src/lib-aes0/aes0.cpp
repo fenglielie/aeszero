@@ -1,18 +1,25 @@
 #include "aes0.h"
 
+#include <array>
 #include <bitset>
 #include <fstream>
 #include <iostream>
 #include <random>
 #include <vector>
 
+constexpr int Nr = 10;  // AES-128需要 10 轮加密
+constexpr int Nk = 4;   // Nk 表示输入密钥的 word 个数
+
+constexpr int AES_BlockSize = 16;
+
 using Byte = std::bitset<8>;   // 一个字节
 using Word = std::bitset<32>;  // 4个字节
 
 using Block = std::bitset<128>;
-
-constexpr int Nr = 10;  // AES-128需要 10 轮加密
-constexpr int Nk = 4;   // Nk 表示输入密钥的 word 个数
+using BlockByteVec = std::array<Byte, 16>;
+using ExpandKeyWordVec = std::array<Word, 4 * (Nr + 1)>;
+using KeyWordVec = std::array<Word, 4>;
+using FullKeyByteVec  = std::array<Byte, 4 * Nk>;
 
 const std::vector<std::vector<Byte>> S_Box = {
     std::vector<Byte>{0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30,
@@ -231,32 +238,41 @@ const std::vector<Word> Rcon = {0x01000000, 0x02000000, 0x04000000, 0x08000000,
                                 0x10000000, 0x20000000, 0x40000000, 0x80000000,
                                 0x1b000000, 0x36000000};
 
+void get_byte_index(const Byte &b, int &row, int &col) {
+    row = static_cast<int>(b[7]) * 8 + static_cast<int>(b[6]) * 4
+          + static_cast<int>(b[5]) * 2 + static_cast<int>(b[4]);
+    col = static_cast<int>(b[3]) * 8 + static_cast<int>(b[2]) * 4
+          + static_cast<int>(b[1]) * 2 + static_cast<int>(b[0]);
+}
+
 /**
  *  S盒变换 - 前4位为行号，后4位为列号
  */
-void SubBytes(Byte mtx[4 * 4]) {
+void SubBytes(BlockByteVec &mtx) {
+    int row = 0;
+    int col = 0;
     for (int i = 0; i < 16; ++i) {
-        int row = mtx[i][7] * 8 + mtx[i][6] * 4 + mtx[i][5] * 2 + mtx[i][4];
-        int col = mtx[i][3] * 8 + mtx[i][2] * 4 + mtx[i][1] * 2 + mtx[i][0];
-        mtx[i] = S_Box[row][col];
+        get_byte_index(mtx.at(i), row, col);
+        mtx.at(i) = S_Box[row][col];
     }
 }
 
 /**
  *  逆S盒变换 - 前4位为行号，后4位为列号
  */
-void InvSubBytes(Byte mtx[4 * 4]) {
+void InvSubBytes(BlockByteVec &mtx) {
+    int row = 0;
+    int col = 0;
     for (int i = 0; i < 16; ++i) {
-        int row = mtx[i][7] * 8 + mtx[i][6] * 4 + mtx[i][5] * 2 + mtx[i][4];
-        int col = mtx[i][3] * 8 + mtx[i][2] * 4 + mtx[i][1] * 2 + mtx[i][0];
-        mtx[i] = Inv_S_Box[row][col];
+        get_byte_index(mtx.at(i), row, col);
+        mtx.at(i) = Inv_S_Box[row][col];
     }
 }
 
 /**
  *  行变换 - 按字节循环移位
  */
-void ShiftRows(Byte mtx[4 * 4]) {
+void ShiftRows(BlockByteVec &mtx) {
     // 第二行循环左移一位
     Byte temp = mtx[4];
     for (int i = 0; i < 3; ++i) mtx[i + 4] = mtx[i + 5];
@@ -276,7 +292,7 @@ void ShiftRows(Byte mtx[4 * 4]) {
 /**
  *  逆行变换 - 以字节为单位循环右移
  */
-void InvShiftRows(Byte mtx[4 * 4]) {
+void InvShiftRows(BlockByteVec &mtx) {
     // 第二行循环右移一位
     Byte temp = mtx[7];
     for (int i = 3; i > 0; --i) mtx[i + 4] = mtx[i + 3];
@@ -296,7 +312,7 @@ void InvShiftRows(Byte mtx[4 * 4]) {
 /**
  *  列混淆
  */
-void MixColumns(Byte mtx[4 * 4]) {
+void MixColumns(BlockByteVec &mtx) {
     Byte arr[4];
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) arr[j] = mtx[i + j * 4];
@@ -315,7 +331,7 @@ void MixColumns(Byte mtx[4 * 4]) {
 /**
  *  逆列混淆
  */
-void InvMixColumns(Byte mtx[4 * 4]) {
+void InvMixColumns(BlockByteVec &mtx) {
     Byte arr[4];
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) arr[j] = mtx[i + j * 4];
@@ -334,7 +350,7 @@ void InvMixColumns(Byte mtx[4 * 4]) {
 /**
  *  轮密钥加变换 - 将每一列与扩展密钥进行异或
  */
-void AddRoundKey(Byte mtx[4 * 4], const Word k[4]) {
+void AddRoundKey(BlockByteVec &mtx, const KeyWordVec &k) {
     for (int i = 0; i < 4; ++i) {
         Word k1 = k[i] >> 24;
         Word k2 = (k[i] << 8) >> 24;
@@ -386,8 +402,13 @@ Word RotWord(const Word &rw) {
 Word SubWord(const Word &sw) {
     Word temp;
     for (int i = 0; i < 32; i += 8) {
-        int row = sw[i + 7] * 8 + sw[i + 6] * 4 + sw[i + 5] * 2 + sw[i + 4];
-        int col = sw[i + 3] * 8 + sw[i + 2] * 4 + sw[i + 1] * 2 + sw[i];
+        int row =
+            static_cast<int>(sw[i + 7]) * 8 + static_cast<int>(sw[i + 6]) * 4
+            + static_cast<int>(sw[i + 5]) * 2 + static_cast<int>(sw[i + 4]);
+        int col = static_cast<int>(sw[i + 3]) * 8
+                  + static_cast<int>(sw[i + 2]) * 4
+                  + static_cast<int>(sw[i + 1]) * 2 + static_cast<int>(sw[i]);
+
         Byte val = S_Box[row][col];
         for (int j = 0; j < 8; ++j) temp[i + j] = val[j];
     }
@@ -402,8 +423,7 @@ Word Toper(const Word &sw, const Word &rcon) { return sw ^ rcon; }
 /**
  *  密钥扩展函数 - 对128位密钥进行扩展得到 w[4*(Nr+1)]
  */
-void KeyExpansion(Byte key[4 * Nk], Word w[4 * (Nr + 1)]) {
-    Word temp;
+void KeyExpansion(ExpandKeyWordVec &w, const FullKeyByteVec &key) {
     int i = 0;
     // w[]的前4个就是输入的key
     while (i < Nk) {
@@ -415,11 +435,11 @@ void KeyExpansion(Byte key[4 * Nk], Word w[4 * (Nr + 1)]) {
     i = Nk;
 
     while (i < 4 * (Nr + 1)) {
-        temp = w[i - 1];  // 记录前一个word
         if (i % Nk == 0) {
-            w[i] = w[i - Nk] ^ Toper(SubWord(RotWord(temp)), Rcon[i / Nk - 1]);
+            w[i] =
+                w[i - Nk] ^ Toper(SubWord(RotWord(w[i - 1])), Rcon[i / Nk - 1]);
         }
-        else { w[i] = w[i - Nk] ^ temp; }
+        else { w[i] = w[i - Nk] ^ w[i - 1]; }
 
         ++i;
     }
@@ -430,25 +450,23 @@ void KeyExpansion(Byte key[4 * Nk], Word w[4 * (Nr + 1)]) {
  *  存到一个 Byte 数组中
  *  对于不足16个字符时，后面补0（即空格）
  */
-void CharToByte(Byte out[16], const char s[16]) {
+void CharToByte(BlockByteVec &out, const std::string &str) {
     for (int i = 0; i < 16; ++i)
-        for (int j = 0; j < 8; ++j) out[i][j] = ((s[i] >> j) & 1);
+        for (int j = 0; j < 8; ++j) out[i][j] = ((str[i] >> j) & 1);
 }
 
-void GetKey(Word w[4 * (Nr + 1)], const std::string &key_str) {
-    Byte key[16];
-    CharToByte(key, key_str.c_str());
-    // 密钥扩展
-    KeyExpansion(key, w);
+void GetKey(ExpandKeyWordVec &w, const std::string &key_str) {
+    FullKeyByteVec key;
+    CharToByte(key, key_str);
+    KeyExpansion(w, key);
 }
 
 /**
  *  将连续的128位分成16组，存到一个 Byte 数组中
  */
-void DivideByte(Byte out[16], Block &data) {
-    Block temp;
+void DivideByte(BlockByteVec &out, const Block &data) {
     for (int i = 0; i < 16; ++i) {
-        temp = (data << 8 * i) >> 120;
+        Block temp = (data << 8 * i) >> 120;
         out[i] = temp.to_ulong();
     }
 }
@@ -456,11 +474,10 @@ void DivideByte(Byte out[16], Block &data) {
 /**
  *  将16个 Byte 合并成连续的128位
  */
-Block MergeByte(const Byte in[16]) {
+Block MergeByte(const BlockByteVec &in) {
     Block res;
-    Block temp;
     for (int i = 0; i < 16; ++i) {
-        temp = in[i].to_ulong();
+        Block temp = in[i].to_ulong();
         temp <<= 8 * (15 - i);
         res |= temp;
     }
@@ -468,15 +485,16 @@ Block MergeByte(const Byte in[16]) {
 }
 
 // PKCS7 填充函数
-void PKCS7Pad(Byte plain[16], int bytesRead) {
-    int paddingSize = 16 - bytesRead;
+void PKCS7Pad(BlockByteVec &plain, int bytesRead) {
+    int paddingSize = AES_BlockSize - bytesRead;
     for (int i = 0; i < paddingSize; i++) { plain[i] = paddingSize; }
 }
 
 // PKCS7 填充去除函数
-int PKCS7Unpad(Byte plain[16]) {
-    int paddingSize = plain[0].to_ulong();  // 最后一个字节的值是填充长度
-    return 16 - paddingSize;
+int PKCS7Unpad(BlockByteVec &plain) {
+    // 最后一个字节的值是填充长度
+    int paddingSize = static_cast<int>(plain[0].to_ulong());
+    return AES_BlockSize - paddingSize;
 }
 
 // 生成固定长度的随机字符串
@@ -504,8 +522,8 @@ std::string GetRandomStr(size_t length) {
 /**
  *  加密
  */
-void BlockEncrypt(Byte in[4 * 4], Word w[4 * (Nr + 1)]) {
-    Word key[4];
+void BlockEncrypt(BlockByteVec in, const ExpandKeyWordVec w) {
+    KeyWordVec key;
     for (int i = 0; i < 4; ++i) key[i] = w[i];
     AddRoundKey(in, key);
 
@@ -526,8 +544,8 @@ void BlockEncrypt(Byte in[4 * 4], Word w[4 * (Nr + 1)]) {
 /**
  *  解密
  */
-void BlockDecrypt(Byte in[4 * 4], Word w[4 * (Nr + 1)]) {
-    Word key[4];
+void BlockDecrypt(BlockByteVec in, const ExpandKeyWordVec w) {
+    KeyWordVec key;
     for (int i = 0; i < 4; ++i) key[i] = w[4 * Nr + i];
     AddRoundKey(in, key);
 
@@ -546,60 +564,60 @@ void BlockDecrypt(Byte in[4 * 4], Word w[4 * (Nr + 1)]) {
 }
 
 // 保证密钥长度为16
-std::string AES0::Fixkey16(const std::string &key) {
-    std::string key16;
+std::string AES0::Fixkey(const std::string &key_in) {
+    std::string key;
 
-    if (key.size() > 16) {
+    if (key_in.size() > 16) {
         // 如果输入字符串长度大于16，截断至16位
-        key16 = key.substr(0, 16);
+        key = key_in.substr(0, 16);
     }
     else {
         // 如果长度不足，随机填充可见字符至16位
-        key16 = key + GetRandomStr(16 - key.size());
+        key = key_in + GetRandomStr(16 - key_in.size());
     }
 
-    return key16;
+    return key;
 }
 
-std::string AES0::Mixkey64(const std::string &key16) {
-    if (key16.length() != 16) {
-        std::cerr << "Mixkey64: key16 length error" << std::endl;
+std::string AES0::Mixkey(const std::string &key) {
+    if (key.length() != 16) {
+        std::cerr << "Mixkey: key length error" << std::endl;
         exit(1);
     }
 
     const std::vector<size_t> primes = {2,  3,  5,  7,  11, 13, 17, 19,
                                         23, 29, 31, 37, 41, 43, 47, 53};
 
-    std::string key64 = GetRandomStr(64);  // 先生成随机字符串
-    size_t key_index = 0;                  // 在素数指标处替换
-    for (size_t index : primes) { key64[index] = key16[key_index++]; }
-    return key64;
+    std::string mixkey = GetRandomStr(64);  // 先生成随机字符串
+    size_t key_index = 0;                   // 在素数指标处替换
+    for (size_t index : primes) { mixkey[index] = key[key_index++]; }
+    return mixkey;
 }
 
-std::string AES0::InvMixkey64(const std::string &key64) {
-    if (key64.length() != 64) {
-        std::cerr << "InvMixkey64: key64 length error" << std::endl;
+std::string AES0::InvMixkey(const std::string &mixkey) {
+    if (mixkey.length() != 64) {
+        std::cerr << "InvMixkey: mixkey length error" << std::endl;
         exit(1);
     }
 
     const std::vector<size_t> primes{2,  3,  5,  7,  11, 13, 17, 19,
                                      23, 29, 31, 37, 41, 43, 47, 53};
 
-    std::string key16;
-    key16.reserve(16);
-    for (size_t i = 0; i < 16; i++) { key16 += key64[primes[i]]; }
-    return key16;
+    std::string key;
+    key.reserve(16);
+    for (size_t i = 0; i < 16; i++) { key += mixkey[primes[i]]; }
+    return key;
 }
 
 void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
                        const std::string &key_str) {
     // 处理密钥不足16个字节的情形
-    auto key16 = Fixkey16(key_str);
-    Word w[4 * (Nr + 1)];
-    GetKey(w, key16);
+    auto key = Fixkey(key_str);
+    ExpandKeyWordVec w;
+    GetKey(w, key);
 
     Block data;
-    Byte plain[16];
+    BlockByteVec plain;
 
     std::ifstream in(in_file, std::ios::binary);
     if (!in.is_open()) {
@@ -615,8 +633,8 @@ void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
     while (true) {
         in.read((char *)&data, sizeof(data));
 
-        int bytesRead = in.gcount();  // 实际读取的字节数
-        if (bytesRead < 16) {
+        int bytesRead = static_cast<int>(in.gcount());  // 实际读取的字节数
+        if (bytesRead < AES_BlockSize) {
             // 最后一块不满16个字节，则部分填充
             // 如果最后一块是0，则全部填充16，最后全部截断
             DivideByte(plain, data);
@@ -641,12 +659,12 @@ void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
 void AES0::FileDecrypt(const std::string &in_file, const std::string &out_file,
                        const std::string &key_str) {
     // 处理密钥不足16个字节的情形
-    auto key16 = Fixkey16(key_str);
-    Word w[4 * (Nr + 1)];
-    GetKey(w, key16);
+    auto key = Fixkey(key_str);
+    ExpandKeyWordVec w;
+    GetKey(w, key);
 
     Block data;
-    Byte plain[16];
+    BlockByteVec plain;
 
     std::ifstream in(in_file, std::ios::binary);
     if (!in.is_open()) {
@@ -667,7 +685,7 @@ void AES0::FileDecrypt(const std::string &in_file, const std::string &out_file,
 
         // 如果这是最后一块数据
         if (in.peek() == EOF) {
-            if (in.gcount() > 0 && in.gcount() < 16) {
+            if (in.gcount() > 0 && in.gcount() < AES_BlockSize) {
                 // 最后一块不满16个字节，则出现错误，直接丢弃
                 break;
             }

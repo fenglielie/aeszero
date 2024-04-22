@@ -9,8 +9,8 @@ public:
                             const std::string &out_file,
                             const std::string &key_str);
 
-    static std::string Fixkey16(const std::string &key);
+    static std::string Fixkey(const std::string &key);
 
-    static std::string Mixkey64(const std::string &key16);
-    static std::string InvMixkey64(const std::string &key64);
+    static std::string Mixkey(const std::string &key);
+    static std::string InvMixkey(const std::string &mixkey);
 };
