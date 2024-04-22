@@ -12,8 +12,22 @@ struct ArgsType {
 };
 
 std::string usage_str() {
-    return {"Usage: aeszero -e|-d <infile> -k <key16> | -w <mixkeyfile> -o "
-            "<outfile>\n"};
+    std::string str0{
+        "Usage: aeszero -e|-d <infile> -k <keystring> | -w <mixkeyfile> -o "
+        "<outfile>\nExample:\n"};
+
+    std::string str1{"Encrypt (1): aeszero -e <infile> -o <outfile>\n"};
+    std::string str2{
+        "Encrypt (2): aeszero -e <infile> -k <keystring> -o <outfile>\n"};
+    std::string str3{
+        "Encrypt (3): aeszero -e <infile> -w <keyfile> -o <outfile>\n"};
+
+    std::string str4{
+        "Decrypt (1): aeszero -d <infile> -k <keystring> -o <outfile>\n"};
+    std::string str5{
+        "Decrypt (2): aeszero -d <infile> -w <keyfile> -o <outfile>\n"};
+
+    return str0 + str1 + str2 + str3 + str4 + str5;
 }
 
 void read_str_from_file(const std::string &file_name, std::string &str) {
@@ -36,7 +50,7 @@ void write_str_to_file(const std::string &file_name, const std::string &str) {
     file.close();
 }
 
-ArgsType init(int argc, char *argv[]) {
+ArgsType init(const int argc, const char *argv[]) {
     char mode = 0;
     std::string file_in_name;
     std::string file_out_name;
@@ -63,11 +77,11 @@ ArgsType init(int argc, char *argv[]) {
         // 检查参数是否为密钥字符串标志（-k）
         else if (arg == "-k") {
             if (key != "") {
-                std::cerr << "Error: key string already set " << std::endl;
+                std::cerr << "Error: key already set " << std::endl;
                 exit(1);
             }
             if (index + 1 >= argc) {
-                std::cerr << "Error: Missing key after -k" << std::endl;
+                std::cerr << "Error: Missing key string after -k" << std::endl;
                 exit(1);
             }
 
@@ -118,9 +132,14 @@ ArgsType init(int argc, char *argv[]) {
         exit(1);
     }
 
-    // 允许密钥为空，此时自动生成随机密钥
     if (key.empty()) {
-        std::cout << "use random key to encrypt\n";
+        if (mode == 'd') {
+            // 解密模式下不允许密钥为空
+            std::cerr << "Error: Missing key string.\n";
+            std::cerr << usage_str();
+            exit(1);
+        }
+        // 加密模式下允许密钥为空，此时自动生成随机密钥
         key = AES0::Fixkey({});
     }
 
@@ -149,7 +168,14 @@ void run(const ArgsType &args) {
     }
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, const char *argv[]) {
+    // int main() {
+    //     // 自定义命令行参数数量
+    //     int argc = 7;
+    //     // 自定义命令行参数数组
+    //     const char *argv[] = {"eaeszero", "-e", "image.png",    "-k",
+    //                           "12345",    "-o", "image2.png"};
+
     if (argc == 1) {
         std::cout << usage_str();
         return 0;

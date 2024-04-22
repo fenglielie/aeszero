@@ -19,7 +19,7 @@ using Block = std::bitset<128>;
 using BlockByteVec = std::array<Byte, 16>;
 using ExpandKeyWordVec = std::array<Word, 4 * (Nr + 1)>;
 using KeyWordVec = std::array<Word, 4>;
-using FullKeyByteVec  = std::array<Byte, 4 * Nk>;
+using FullKeyByteVec = std::array<Byte, 4 * Nk>;
 
 const std::vector<std::vector<Byte>> S_Box = {
     std::vector<Byte>{0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30,
@@ -238,22 +238,22 @@ const std::vector<Word> Rcon = {0x01000000, 0x02000000, 0x04000000, 0x08000000,
                                 0x10000000, 0x20000000, 0x40000000, 0x80000000,
                                 0x1b000000, 0x36000000};
 
-void get_byte_index(const Byte &b, int &row, int &col) {
-    row = static_cast<int>(b[7]) * 8 + static_cast<int>(b[6]) * 4
-          + static_cast<int>(b[5]) * 2 + static_cast<int>(b[4]);
-    col = static_cast<int>(b[3]) * 8 + static_cast<int>(b[2]) * 4
-          + static_cast<int>(b[1]) * 2 + static_cast<int>(b[0]);
+std::tuple<int, int> get_byte_index(const Byte &b) {
+    int row = static_cast<int>(b[7]) * 8 + static_cast<int>(b[6]) * 4
+              + static_cast<int>(b[5]) * 2 + static_cast<int>(b[4]);
+    int col = static_cast<int>(b[3]) * 8 + static_cast<int>(b[2]) * 4
+              + static_cast<int>(b[1]) * 2 + static_cast<int>(b[0]);
+
+    return {row, col};
 }
 
 /**
  *  S盒变换 - 前4位为行号，后4位为列号
  */
 void SubBytes(BlockByteVec &mtx) {
-    int row = 0;
-    int col = 0;
     for (int i = 0; i < 16; ++i) {
-        get_byte_index(mtx.at(i), row, col);
-        mtx.at(i) = S_Box[row][col];
+        auto [row, col] = get_byte_index(mtx[i]);
+        mtx[i] = S_Box[row][col];
     }
 }
 
@@ -261,11 +261,9 @@ void SubBytes(BlockByteVec &mtx) {
  *  逆S盒变换 - 前4位为行号，后4位为列号
  */
 void InvSubBytes(BlockByteVec &mtx) {
-    int row = 0;
-    int col = 0;
     for (int i = 0; i < 16; ++i) {
-        get_byte_index(mtx.at(i), row, col);
-        mtx.at(i) = Inv_S_Box[row][col];
+        auto [row, col] = get_byte_index(mtx[i]);
+        mtx[i] = Inv_S_Box[row][col];
     }
 }
 
@@ -423,7 +421,8 @@ Word Toper(const Word &sw, const Word &rcon) { return sw ^ rcon; }
 /**
  *  密钥扩展函数 - 对128位密钥进行扩展得到 w[4*(Nr+1)]
  */
-void KeyExpansion(ExpandKeyWordVec &w, const FullKeyByteVec &key) {
+ExpandKeyWordVec KeyExpansion(const FullKeyByteVec &key) {
+    ExpandKeyWordVec w;
     int i = 0;
     // w[]的前4个就是输入的key
     while (i < Nk) {
@@ -443,6 +442,7 @@ void KeyExpansion(ExpandKeyWordVec &w, const FullKeyByteVec &key) {
 
         ++i;
     }
+    return w;
 }
 
 /**
@@ -450,25 +450,28 @@ void KeyExpansion(ExpandKeyWordVec &w, const FullKeyByteVec &key) {
  *  存到一个 Byte 数组中
  *  对于不足16个字符时，后面补0（即空格）
  */
-void CharToByte(BlockByteVec &out, const std::string &str) {
+BlockByteVec CharToByte(const std::string &str) {
+    BlockByteVec out;
     for (int i = 0; i < 16; ++i)
         for (int j = 0; j < 8; ++j) out[i][j] = ((str[i] >> j) & 1);
+    return out;
 }
 
-void GetKey(ExpandKeyWordVec &w, const std::string &key_str) {
-    FullKeyByteVec key;
-    CharToByte(key, key_str);
-    KeyExpansion(w, key);
+ExpandKeyWordVec GetKey(const std::string &key_str) {
+    FullKeyByteVec key = CharToByte(key_str);
+    return KeyExpansion(key);
 }
 
 /**
  *  将连续的128位分成16组，存到一个 Byte 数组中
  */
-void DivideByte(BlockByteVec &out, const Block &data) {
+BlockByteVec DivideByte(const Block &data) {
+    BlockByteVec out;
     for (int i = 0; i < 16; ++i) {
         Block temp = (data << 8 * i) >> 120;
         out[i] = temp.to_ulong();
     }
+    return out;
 }
 
 /**
@@ -484,14 +487,16 @@ Block MergeByte(const BlockByteVec &in) {
     return res;
 }
 
-// PKCS7 填充函数
-void PKCS7Pad(BlockByteVec &plain, int bytesRead) {
+// 填充
+BlockByteVec PKCS7Pad(BlockByteVec plain, int bytesRead) {
     int paddingSize = AES_BlockSize - bytesRead;
     for (int i = 0; i < paddingSize; i++) { plain[i] = paddingSize; }
+
+    return plain;
 }
 
-// PKCS7 填充去除函数
-int PKCS7Unpad(BlockByteVec &plain) {
+// 获取填充长度
+int PKCS7Unpad(const BlockByteVec &plain) {
     // 最后一个字节的值是填充长度
     int paddingSize = static_cast<int>(plain[0].to_ulong());
     return AES_BlockSize - paddingSize;
@@ -522,45 +527,49 @@ std::string GetRandomStr(size_t length) {
 /**
  *  加密
  */
-void BlockEncrypt(BlockByteVec in, const ExpandKeyWordVec w) {
+BlockByteVec BlockEncrypt(BlockByteVec data_block, const ExpandKeyWordVec &w) {
     KeyWordVec key;
     for (int i = 0; i < 4; ++i) key[i] = w[i];
-    AddRoundKey(in, key);
+    AddRoundKey(data_block, key);
 
     for (int round = 1; round < Nr; ++round) {
-        SubBytes(in);
-        ShiftRows(in);
-        MixColumns(in);
+        SubBytes(data_block);
+        ShiftRows(data_block);
+        MixColumns(data_block);
         for (int i = 0; i < 4; ++i) key[i] = w[4 * round + i];
-        AddRoundKey(in, key);
+        AddRoundKey(data_block, key);
     }
 
-    SubBytes(in);
-    ShiftRows(in);
+    SubBytes(data_block);
+    ShiftRows(data_block);
     for (int i = 0; i < 4; ++i) key[i] = w[4 * Nr + i];
-    AddRoundKey(in, key);
+    AddRoundKey(data_block, key);
+
+    return data_block;
 }
 
 /**
  *  解密
  */
-void BlockDecrypt(BlockByteVec in, const ExpandKeyWordVec w) {
+BlockByteVec BlockDecrypt(BlockByteVec data_block, const ExpandKeyWordVec &w) {
     KeyWordVec key;
     for (int i = 0; i < 4; ++i) key[i] = w[4 * Nr + i];
-    AddRoundKey(in, key);
+    AddRoundKey(data_block, key);
 
     for (int round = Nr - 1; round > 0; --round) {
-        InvShiftRows(in);
-        InvSubBytes(in);
+        InvShiftRows(data_block);
+        InvSubBytes(data_block);
         for (int i = 0; i < 4; ++i) key[i] = w[4 * round + i];
-        AddRoundKey(in, key);
-        InvMixColumns(in);
+        AddRoundKey(data_block, key);
+        InvMixColumns(data_block);
     }
 
-    InvShiftRows(in);
-    InvSubBytes(in);
+    InvShiftRows(data_block);
+    InvSubBytes(data_block);
     for (int i = 0; i < 4; ++i) key[i] = w[i];
-    AddRoundKey(in, key);
+    AddRoundKey(data_block, key);
+
+    return data_block;
 }
 
 // 保证密钥长度为16
@@ -612,9 +621,7 @@ std::string AES0::InvMixkey(const std::string &mixkey) {
 void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
                        const std::string &key_str) {
     // 处理密钥不足16个字节的情形
-    auto key = Fixkey(key_str);
-    ExpandKeyWordVec w;
-    GetKey(w, key);
+    ExpandKeyWordVec w = GetKey(Fixkey(key_str));
 
     Block data;
     BlockByteVec plain;
@@ -635,18 +642,16 @@ void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
 
         int bytesRead = static_cast<int>(in.gcount());  // 实际读取的字节数
         if (bytesRead < AES_BlockSize) {
-            // 最后一块不满16个字节，则部分填充
-            // 如果最后一块是0，则全部填充16，最后全部截断
-            DivideByte(plain, data);
-            PKCS7Pad(plain, bytesRead);  // 执行 PKCS7 填充
-            BlockEncrypt(plain, w);
+            plain = DivideByte(data);
+            plain = PKCS7Pad(plain, bytesRead);  // 执行 PKCS7 填充
+            plain = BlockEncrypt(plain, w);
             data = MergeByte(plain);
             out.write((char *)&data, sizeof(data));
             break;
         }
 
-        DivideByte(plain, data);
-        BlockEncrypt(plain, w);
+        plain = DivideByte(data);
+        plain = BlockEncrypt(plain, w);
         data = MergeByte(plain);
         out.write((char *)&data, sizeof(data));
 
@@ -659,9 +664,7 @@ void AES0::FileEncrypt(const std::string &in_file, const std::string &out_file,
 void AES0::FileDecrypt(const std::string &in_file, const std::string &out_file,
                        const std::string &key_str) {
     // 处理密钥不足16个字节的情形
-    auto key = Fixkey(key_str);
-    ExpandKeyWordVec w;
-    GetKey(w, key);
+    ExpandKeyWordVec w = GetKey(Fixkey(key_str));
 
     Block data;
     BlockByteVec plain;
@@ -679,8 +682,8 @@ void AES0::FileDecrypt(const std::string &in_file, const std::string &out_file,
 
     while (true) {
         in.read((char *)&data, sizeof(data));
-        DivideByte(plain, data);
-        BlockDecrypt(plain, w);
+        plain = DivideByte(data);
+        plain = BlockDecrypt(plain, w);
         data = MergeByte(plain);
 
         // 如果这是最后一块数据
