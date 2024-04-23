@@ -8,3 +8,6 @@ zero_init()
 zero_info()
 
 add_subdirectory(src)
+
+include(CTest)
+add_subdirectory(test)

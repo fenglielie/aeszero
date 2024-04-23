@@ -2,3 +2,6 @@ bin/
 lib/
 build/
 .cache/
+
+test/tmp/*
+!test/tmp/.gitkeep
