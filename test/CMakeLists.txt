@@ -19,17 +19,17 @@ add_test(NAME test14
         )
 
 add_test(NAME check11
-        COMMAND python3 check.py test.txt tmp/test_new.txt
+        COMMAND python check.py test.txt tmp/test_new.txt
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
 add_test(NAME check12
-        COMMAND python3 check.py test.txt tmp/test_new2.txt
+        COMMAND python check.py test.txt tmp/test_new2.txt
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
 add_test(NAME check13
-        COMMAND python3 check.py test.txt tmp/test_fail.txt
+        COMMAND python check.py test.txt tmp/test_fail.txt
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 set_property(TEST check13 PROPERTY WILL_FAIL true)
@@ -52,12 +52,12 @@ add_test(NAME test23
 
 
 add_test(NAME check21
-        COMMAND python3 check.py image.png tmp/image_new.png
+        COMMAND python check.py image.png tmp/image_new.png
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 
 add_test(NAME check22
-        COMMAND python3 check.py image.png tmp/image_fail.png
+        COMMAND python  check.py image.png tmp/image_fail.png
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
 set_property(TEST check22 PROPERTY WILL_FAIL true)

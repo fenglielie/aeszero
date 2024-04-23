@@ -24,7 +24,6 @@ def main():
     file2_path = sys.argv[2]
     result = are_files_equal(file1_path, file2_path)
 
-    # 返回结果：0表示文件相等，1表示文件不相等
     return 0 if result else 1
 
 
