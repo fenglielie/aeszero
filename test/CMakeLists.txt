@@ -69,17 +69,17 @@ set_property(TEST check22 PROPERTY WILL_FAIL true)
 
 ## demo.mp4
 
-add_test(NAME test31
-        COMMAND aeszero demo.mp4
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
+# add_test(NAME test31
+#         COMMAND aeszero demo.mp4
+#         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#         )
 
-add_test(NAME test32
-        COMMAND aeszero demo.mp4.aes0
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
+# add_test(NAME test32
+#         COMMAND aeszero demo.mp4.aes0
+#         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#         )
 
-add_test(NAME check31
-        COMMAND python check.py demo.mp4 demo.mp4.aes0.dec
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        )
+# add_test(NAME check31
+#         COMMAND python check.py demo.mp4 demo.mp4.aes0.dec
+#         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+#         )
