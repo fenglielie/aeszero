@@ -5,3 +5,7 @@ build/
 
 test/tmp/*
 !test/tmp/.gitkeep
+
+*.aes0
+*.aes0.key
+*.aes0.dec
