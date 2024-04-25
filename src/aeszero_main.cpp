@@ -50,11 +50,47 @@ void write_str_to_file(const std::string &file_name, const std::string &str) {
     file.close();
 }
 
+ArgsType init_smart(const char *single_arg) {
+    char mode = 0;
+    std::string file_in_name;
+    std::string file_out_name;
+    std::string key;
+    std::string arg1 = single_arg;
+
+    auto ends_with = [](const std::string &str, const std::string &suffix) {
+        return str.length() >= suffix.length()
+               && str.substr(str.length() - suffix.length()) == suffix;
+    };
+
+    mode = ends_with(arg1, ".aes0") ? 'd' : 'e';
+
+    if (mode == 'd') {
+        file_in_name = arg1;
+        file_out_name = file_in_name + ".dec";
+        std::string key_file_name = file_in_name + ".key";
+        std::string mix_key_tmp;
+        read_str_from_file(key_file_name, mix_key_tmp);
+        key = AES0::InvMixkey(mix_key_tmp);
+    }
+    else {  // mode == 'e'
+        file_in_name = arg1;
+        file_out_name = file_in_name + ".aes0";
+        key = AES0::Fixkey("");
+        std::string mix_key_str = AES0::Mixkey(key);
+        write_str_to_file(file_out_name + ".key", mix_key_str);
+    }
+
+    return {mode, file_in_name, file_out_name, key};
+}
+
 ArgsType init(const int argc, const char *argv[]) {
     char mode = 0;
     std::string file_in_name;
     std::string file_out_name;
     std::string key;
+
+    // 智能模式
+    if (argc == 2) { return init_smart(argv[1]); }
 
     for (int index = 1; index < argc; index++) {
         std::string arg = argv[index];
@@ -182,7 +218,6 @@ int main(int argc, const char *argv[]) {
     }
 
     auto args = init(argc, argv);
-
     run(args);
 
     return 0;
