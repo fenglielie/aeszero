@@ -11,3 +11,7 @@ add_subdirectory(src)
 
 include(CTest)
 add_subdirectory(test)
+
+install(TARGETS aeszero)
+set(CPACK_GENERATOR "ZIP;TGZ")
+include(CPack)
