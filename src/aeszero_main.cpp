@@ -89,9 +89,6 @@ ArgsType init(const int argc, const char *argv[]) {
     std::string file_out_name;
     std::string key;
 
-    // 智能模式
-    if (argc == 2) { return init_smart(argv[1]); }
-
     for (int index = 1; index < argc; index++) {
         std::string arg = argv[index];
 
@@ -188,13 +185,15 @@ ArgsType init(const int argc, const char *argv[]) {
     return {mode, file_in_name, file_out_name, key};
 }
 
-void run(const ArgsType &args) {
-    if (args.mode == 'e') { std::cout << "[Encrypting]\n"; }
-    else { std::cout << "[Decrypting]\n"; }
+void run(const ArgsType &args, bool show_msg) {
+    if (show_msg) {
+        if (args.mode == 'e') { std::cout << "[Encrypting]\n"; }
+        else { std::cout << "[Decrypting]\n"; }
 
-    std::cout << "Input file: " << args.file_in_name << std::endl;
-    std::cout << "Output file: " << args.file_out_name << std::endl;
-    std::cout << "Key: " << args.key << std::endl;
+        std::cout << "Input file: " << args.file_in_name << std::endl;
+        std::cout << "Output file: " << args.file_out_name << std::endl;
+        std::cout << "Key: " << args.key << std::endl;
+    }
 
     if (args.mode == 'e') {
         AES0::FileEncrypt(args.file_in_name, args.file_out_name, args.key);
@@ -217,8 +216,14 @@ int main(int argc, const char *argv[]) {
         return 0;
     }
 
-    auto args = init(argc, argv);
-    run(args);
+    if (argc == 2) {
+        auto args = init_smart(argv[1]);
+        run(args, false);
+    }
+    else {
+        auto args = init(argc, argv);
+        run(args, true);
+    }
 
     return 0;
 }
