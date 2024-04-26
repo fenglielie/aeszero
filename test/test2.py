@@ -1,21 +1,25 @@
 import subprocess
 import sys
 
+
 def run_test(command):
     result = subprocess.call(command, shell=True)
     return result
 
+
 def run_main():
+    command = sys.argv[1]
+
     # 成功加密
-    if run_test("aeszero -e image.png -o image.aes") != 0:
+    if run_test(command + " -e image.png -o image.aes") != 0:
         sys.exit(1)
 
     # 成功解密
-    if run_test("aeszero -d image.aes -o image_new.png -f image.aes.key") != 0:
+    if run_test(command + " -d image.aes -o image_new.png -f image.aes.key") != 0:
         sys.exit(1)
 
     # 失败解密
-    if run_test("aeszero -d image.aes -o image_fail.png -k bsgbgvcxz") != 0:
+    if run_test(command + " -d image.aes -o image_fail.png -k bsgbgvcxz") != 0:
         sys.exit(1)
 
 

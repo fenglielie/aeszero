@@ -1,25 +1,32 @@
-import subprocess
+import os
+
+# import subprocess
 import sys
 
+
 def run_test(command):
-    result = subprocess.call(command, shell=True)
+    # result = subprocess.call(command, shell=True)
+    result = os.system(command)
     return result
 
+
 def run_main():
+    command = sys.argv[1]
+
     # 成功加密
-    if run_test("aeszero -e test.txt -k abcdefghijklmnop -o test.aes") != 0:
+    if run_test(command + " -e test.txt -k abcdefghijklmnop -o test.aes") != 0:
         sys.exit(1)
 
     # 成功解密
-    if run_test("aeszero -d test.aes -k abcdefghijklmnop -o test_new.txt") != 0:
+    if run_test(command + " -d test.aes -k abcdefghijklmnop -o test_new.txt") != 0:
         sys.exit(1)
 
     # 成功解密
-    if run_test("aeszero -d test.aes -f test.aes.key -o test_new2.txt") != 0:
+    if run_test(command + " -d test.aes -f test.aes.key -o test_new2.txt") != 0:
         sys.exit(1)
 
     # 失败解密
-    if run_test("aeszero -d test.aes -k abcdefghijklm -o test_fail.txt") != 0:
+    if run_test(command + " -d test.aes -k abcdefghijklm -o test_fail.txt") != 0:
         sys.exit(1)
 
 

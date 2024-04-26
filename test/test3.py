@@ -1,17 +1,21 @@
 import subprocess
 import sys
 
+
 def run_test(command):
     result = subprocess.call(command, shell=True)
     return result
 
+
 def run_main():
+    command = sys.argv[1]
+
     # 成功加密
-    if run_test("aeszero demo.mp4") != 0:
+    if run_test(command + " demo.mp4") != 0:
         sys.exit(1)
 
     # 成功解密
-    if run_test("aeszero demo.mp4.aes0") != 0:
+    if run_test(command + " demo.mp4.aes0") != 0:
         sys.exit(1)
 
 
@@ -34,8 +38,7 @@ def main():
     run_main()
 
     if are_files_equal("demo.mp4", "demo.mp4.aes0.dec") == False:
-       return 1
-
+        return 1
 
     return 0
 
