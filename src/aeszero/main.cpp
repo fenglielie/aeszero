@@ -90,7 +90,8 @@ ArgsType init_smart(const char *single_arg) {
         mixkey = AES0::Mixkey(AES0::Fixkey(""));
     }
 
-    return {mode, false, file_in_name, file_out_name, mixkey};
+    // FIXME
+    return {mode, true, file_in_name, file_out_name, mixkey};
 }
 
 // NOLINTNEXTLINE

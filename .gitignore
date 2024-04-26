@@ -4,10 +4,13 @@ build/
 .cache/
 
 test/*
+!test/CMakeLists.txt
 !test/.gitkeep
 !test/demo.mp4
 !test/image.png
 !test/test.txt
+!test/*.py
+
 
 *.aes0
 *.aes0.key
