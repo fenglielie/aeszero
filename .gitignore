@@ -3,8 +3,11 @@ lib/
 build/
 .cache/
 
-test/tmp/*
-!test/tmp/.gitkeep
+test/*
+!test/.gitkeep
+!test/demo.mp4
+!test/image.png
+!test/test.txt
 
 *.aes0
 *.aes0.key
