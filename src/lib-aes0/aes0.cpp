@@ -6,6 +6,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <tuple>
 
 constexpr int Nr = 10;  // AES-128需要 10 轮加密
 constexpr int Nk = 4;   // Nk 表示输入密钥的 word 个数
