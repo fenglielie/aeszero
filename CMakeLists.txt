@@ -7,6 +7,8 @@ zero_init()
 
 zero_info()
 
+zero_add_my_rpath()
+
 add_subdirectory(src)
 
 include(CTest)
