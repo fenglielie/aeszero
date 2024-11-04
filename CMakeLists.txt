@@ -4,10 +4,7 @@ project(aeszero VERSION 1.0)
 include(cmake/zero.cmake)
 
 zero_init()
-
 zero_info()
-
-zero_add_my_rpath()
 
 add_subdirectory(src)
 
